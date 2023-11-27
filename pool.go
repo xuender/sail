@@ -1,13 +1,16 @@
 package sail
 
 import (
+	"context"
 	"sync"
 	"sync/atomic"
 	"time"
 )
 
 type pool[I, O any] struct {
-	yield   func(I, int) O
+	// nolint: containedctx
+	ctx     context.Context
+	yield   func(context.Context, I) O
 	input   chan I
 	output  chan<- O
 	max     int32
@@ -16,7 +19,7 @@ type pool[I, O any] struct {
 	count   atomic.Int32
 	idle    time.Duration
 	busy    time.Duration
-	workID  int
+	workID  atomic.Int32
 }
 
 func (p *pool[I, O]) Post(elems ...I) {
@@ -24,6 +27,10 @@ func (p *pool[I, O]) Post(elems ...I) {
 
 	for _, elem := range elems {
 		select {
+		case <-p.ctx.Done():
+			timer.Stop()
+
+			return
 		case p.input <- elem:
 		case <-timer.C:
 			p.up()
@@ -50,10 +57,19 @@ func (p *pool[I, O]) Close() {
 	close(p.input)
 }
 
-func (p *pool[I, O]) newWorker() any {
-	p.workID++
+func (p *pool[I, O]) MaxWorkers() int32 {
+	return p.max
+}
 
-	return &worker[I, O]{pool: p, id: p.workID}
+func (p *pool[I, O]) MinWorkers() int32 {
+	return p.min
+}
+
+func (p *pool[I, O]) newWorker() any {
+	return &worker[I, O]{
+		ctx:  context.WithValue(p.ctx, WorkerID, p.workID.Add(1)),
+		pool: p,
+	}
 }
 
 func (p *pool[I, O]) up() {
@@ -72,8 +88,12 @@ func (p *pool[I, O]) down(work *worker[I, O]) bool {
 		return false
 	}
 
-	p.workers.Put(work)
-	p.count.Add(-1)
+	p.stop(work)
 
 	return true
+}
+
+func (p *pool[I, O]) stop(work *worker[I, O]) {
+	p.workers.Put(work)
+	p.count.Add(-1)
 }

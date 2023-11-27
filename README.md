@@ -6,17 +6,63 @@
 [![godoc][godoc-svg]][godoc-url]
 [![License][license-svg]][license-url]
 
-✨ **`sail` is a ...**
+✨ **`github.com/xuender/sail` is a goroutine pool for Go.**
+
+- dynamically expanding goroutine;
+- idle goroutine auto released;
 
 ## 🚀 Install
 
 ```shell
-go install sail@latest
+go get github.com/xuender/sail
 ```
 
 ## 💡 Usage
 
-TODO
+```golang
+package main
+
+import (
+	"context"
+	"fmt"
+	"strconv"
+	"sync"
+
+	"github.com/xuender/sail"
+)
+
+func main() {
+	wait := sync.WaitGroup{}
+
+	output := make(chan string)
+	defer close(output)
+
+	pool := sail.New(context.Background(), func(_ context.Context, num int) string {
+		return strconv.Itoa(num)
+	}).
+		Output(output).
+		Pool()
+	defer pool.Close()
+
+	go func() {
+		for str := range output {
+			fmt.Println(str)
+			wait.Done()
+		}
+	}()
+
+	wait.Add(5)
+	pool.Post(1, 2, 3, 4, 5)
+	wait.Wait()
+
+	// Output:
+	// 1
+	// 2
+	// 3
+	// 4
+	// 5
+}
+```
 
 ## 👤 Contributors
 
@@ -28,8 +74,8 @@ TODO
 
 [MIT LICENSE][license-url]
 
-[action-url]: https://sail/actions
-[action-svg]: https://sail/workflows/Go/badge.svg
+[action-url]: https://github.com/xuender/sail/actions
+[action-svg]: https://github.com/xuender/sail/workflows/Go/badge.svg
 
 [goreport-url]: https://goreportcard.com/report/sail
 [goreport-svg]: https://goreportcard.com/badge/sail
@@ -37,7 +83,7 @@ TODO
 [godoc-url]: https://godoc.org/sail
 [godoc-svg]: https://godoc.org/sail?status.svg
 
-[license-url]: https://sail/blob/master/LICENSE
+[license-url]: https://github.com/xuender/sail/blob/master/LICENSE
 [license-svg]: https://img.shields.io/badge/license-MIT-blue.svg
 
 [contributors-svg]: https://contrib.rocks/image?repo=sail

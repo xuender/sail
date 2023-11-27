@@ -2,6 +2,7 @@
 package sail_test
 
 import (
+	"context"
 	"fmt"
 	"strconv"
 	"sync"
@@ -10,14 +11,16 @@ import (
 	"github.com/xuender/sail"
 )
 
+func itoa(_ context.Context, num int) string {
+	time.Sleep(time.Millisecond)
+
+	return strconv.Itoa(num)
+}
+
 func Example_poolPost() {
 	wait := sync.WaitGroup{}
 	output := make(chan string)
-	pool := sail.New(func(num, _ int) string {
-		time.Sleep(time.Millisecond)
-
-		return strconv.Itoa(num)
-	}).
+	pool := sail.New(context.Background(), itoa).
 		ChannelSize(1).
 		MaxWorkers(2).
 		Busy(time.Microsecond * 200).

@@ -1,31 +1,37 @@
 package sail
 
 import (
+	"context"
 	"sync"
 	"time"
 )
 
 const (
-	MaxWorkers   = 1_000
-	MinWorkers   = 1
-	ChannelSize  = 1_000
-	IdleDuration = time.Second
-	BusyDuration = time.Millisecond * 100
+	MaxWorkers   int32 = 1_000
+	MinWorkers   int32 = 1
+	ChannelSize        = 1_000
+	IdleDuration       = time.Second
+	BusyDuration       = time.Millisecond * 100
 )
 
+type PoolFunc[I, O any] func(context.Context, I) O
+
 type build[I, O any] struct {
-	yield  func(I, int) O
+	// nolint: containedctx
+	ctx    context.Context
+	yield  PoolFunc[I, O]
 	output chan<- O
 	max    int32
 	min    int32
-	size   uint
+	size   int
 	idle   time.Duration
 	busy   time.Duration
 }
 
 // nolint: revive
-func New[I, O any](yield func(I, int) O) *build[I, O] {
+func New[I, O any](ctx context.Context, yield PoolFunc[I, O]) *build[I, O] {
 	return &build[I, O]{
+		ctx:   ctx,
 		yield: yield,
 		max:   MaxWorkers,
 		min:   MinWorkers,
@@ -33,6 +39,18 @@ func New[I, O any](yield func(I, int) O) *build[I, O] {
 		idle:  IdleDuration,
 		busy:  BusyDuration,
 	}
+}
+
+func (p *build[I, O]) PoolFunc(yield PoolFunc[I, O]) *build[I, O] {
+	p.yield = yield
+
+	return p
+}
+
+func (p *build[I, O]) Context(ctx context.Context) *build[I, O] {
+	p.ctx = ctx
+
+	return p
 }
 
 func (p *build[I, O]) Busy(busy time.Duration) *build[I, O] {
@@ -53,8 +71,8 @@ func (p *build[I, O]) Output(output chan<- O) *build[I, O] {
 	return p
 }
 
-func (p *build[I, O]) ChannelSize(size uint) *build[I, O] {
-	if size < 1 {
+func (p *build[I, O]) ChannelSize(size int) *build[I, O] {
+	if size < 0 {
 		size = ChannelSize
 	}
 
@@ -64,31 +82,34 @@ func (p *build[I, O]) ChannelSize(size uint) *build[I, O] {
 }
 
 func (p *build[I, O]) MinWorkers(min uint32) *build[I, O] {
-	if min < MinWorkers {
-		min = MinWorkers
+	num := int32(min)
+	if num < MinWorkers {
+		num = MinWorkers
 	}
 
-	p.min = int32(min)
+	p.min = num
 
 	return p
 }
 
 func (p *build[I, O]) MaxWorkers(max uint32) *build[I, O] {
-	if max < 1 {
-		max = MaxWorkers
+	num := int32(max)
+	if num < 1 {
+		num = MaxWorkers
 	}
 
-	p.max = int32(max)
+	p.max = num
 
 	return p
 }
 
-func (p *build[I, O]) Pool() *pool[I, O] {
+func (p *build[I, O]) PoolByID(poolID any) *pool[I, O] {
 	if p.max < p.min {
 		p.max = p.min
 	}
 
 	ret := &pool[I, O]{
+		ctx:    context.WithValue(p.ctx, PoolID, poolID),
 		yield:  p.yield,
 		max:    p.max,
 		min:    p.min,
@@ -105,4 +126,8 @@ func (p *build[I, O]) Pool() *pool[I, O] {
 	}
 
 	return ret
+}
+
+func (p *build[I, O]) Pool() *pool[I, O] {
+	return p.PoolByID(time.Now().UnixMilli())
 }

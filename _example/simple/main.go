@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"strconv"
 	"sync"
@@ -14,7 +15,11 @@ func main() {
 	output := make(chan string)
 	defer close(output)
 
-	pool := sail.New(func(num, _ int) string { return strconv.Itoa(num) }).Output(output).Pool()
+	pool := sail.New(context.Background(), func(_ context.Context, num int) string {
+		return strconv.Itoa(num)
+	}).
+		Output(output).
+		Pool()
 	defer pool.Close()
 
 	go func() {
@@ -26,6 +31,12 @@ func main() {
 
 	wait.Add(5)
 	pool.Post(1, 2, 3, 4, 5)
-
 	wait.Wait()
+
+	// Output:
+	// 1
+	// 2
+	// 3
+	// 4
+	// 5
 }

@@ -1,12 +1,14 @@
 package sail
 
 import (
+	"context"
 	"time"
 )
 
 type worker[I, O any] struct {
+	// nolint: containedctx
+	ctx  context.Context
 	pool *pool[I, O]
-	id   int
 }
 
 func (p *worker[I, O]) run() {
@@ -14,6 +16,11 @@ func (p *worker[I, O]) run() {
 
 	for {
 		select {
+		case <-p.ctx.Done():
+			timer.Stop()
+			p.pool.stop(p)
+
+			return
 		case <-timer.C:
 			timer.Stop()
 
@@ -26,15 +33,15 @@ func (p *worker[I, O]) run() {
 			timer.Stop()
 
 			if !has {
-				p.pool.down(p)
+				p.pool.stop(p)
 
 				return
 			}
 
 			if p.pool.output == nil {
-				p.pool.yield(item, p.id)
+				p.pool.yield(p.ctx, item)
 			} else {
-				p.pool.output <- p.pool.yield(item, p.id)
+				p.pool.output <- p.pool.yield(p.ctx, item)
 			}
 
 			timer.Reset(p.pool.idle)

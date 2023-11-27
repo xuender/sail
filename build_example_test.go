@@ -1,8 +1,8 @@
 package sail_test
 
 import (
+	"context"
 	"fmt"
-	"strconv"
 	"sync"
 
 	"github.com/xuender/sail"
@@ -11,7 +11,7 @@ import (
 func ExampleNew() {
 	wait := sync.WaitGroup{}
 	output := make(chan string)
-	pool := sail.New(func(num, _ int) string { return strconv.Itoa(num) }).Output(output).Pool()
+	pool := sail.New(context.Background(), itoa).Output(output).Pool()
 
 	defer pool.Close()
 
@@ -36,7 +36,7 @@ func ExampleNew() {
 }
 
 func Example_build_MinWorkers() {
-	pool := sail.New(func(num, _ int) string { return strconv.Itoa(num) }).MinWorkers(5).Pool()
+	pool := sail.New(context.Background(), itoa).MinWorkers(5).Pool()
 	fmt.Println(pool.Workers())
 
 	// Output:
@@ -44,7 +44,7 @@ func Example_build_MinWorkers() {
 }
 
 func Example_build_ChannelSize() {
-	pool := sail.New(func(num, _ int) string { return strconv.Itoa(num) }).ChannelSize(13).Pool()
+	pool := sail.New(context.Background(), itoa).ChannelSize(13).Pool()
 	fmt.Println(pool.Cap())
 
 	// Output:
