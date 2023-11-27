@@ -17,21 +17,17 @@ const (
 type PoolFunc[I, O any] func(context.Context, I) O
 
 type build[I, O any] struct {
-	// nolint: containedctx
-	ctx    context.Context
-	yield  PoolFunc[I, O]
-	output chan<- O
-	max    int32
-	min    int32
-	size   int
-	idle   time.Duration
-	busy   time.Duration
+	yield PoolFunc[I, O]
+	max   int32
+	min   int32
+	size  int
+	idle  time.Duration
+	busy  time.Duration
 }
 
 // nolint: revive
-func New[I, O any](ctx context.Context, yield PoolFunc[I, O]) *build[I, O] {
+func New[I, O any](yield PoolFunc[I, O]) *build[I, O] {
 	return &build[I, O]{
-		ctx:   ctx,
 		yield: yield,
 		max:   MaxWorkers,
 		min:   MinWorkers,
@@ -47,12 +43,6 @@ func (p *build[I, O]) PoolFunc(yield PoolFunc[I, O]) *build[I, O] {
 	return p
 }
 
-func (p *build[I, O]) Context(ctx context.Context) *build[I, O] {
-	p.ctx = ctx
-
-	return p
-}
-
 func (p *build[I, O]) Busy(busy time.Duration) *build[I, O] {
 	p.busy = busy
 
@@ -61,12 +51,6 @@ func (p *build[I, O]) Busy(busy time.Duration) *build[I, O] {
 
 func (p *build[I, O]) Idle(idle time.Duration) *build[I, O] {
 	p.idle = idle
-
-	return p
-}
-
-func (p *build[I, O]) Output(output chan<- O) *build[I, O] {
-	p.output = output
 
 	return p
 }
@@ -109,20 +93,23 @@ func (p *build[I, O]) PoolByID(poolID any) *pool[I, O] {
 	}
 
 	ret := &pool[I, O]{
-		ctx:    context.WithValue(p.ctx, PoolID, poolID),
-		yield:  p.yield,
-		max:    p.max,
-		min:    p.min,
-		output: p.output,
-		idle:   p.idle,
-		busy:   p.busy,
-		input:  make(chan I, p.size),
+		ctx:   context.WithValue(context.Background(), PoolID, poolID),
+		id:    poolID,
+		yield: p.yield,
+		max:   p.max,
+		min:   p.min,
+		idle:  p.idle,
+		busy:  p.busy,
+		input: make(chan *payload[I, O], p.size),
 	}
 
-	ret.workers = &sync.Pool{New: ret.newWorker}
+	ret.workers = sync.Pool{New: ret.newWorker}
+	ret.payloads = sync.Pool{New: ret.newPayload}
+	ret.waits = sync.Pool{New: ret.newWait}
+	ret.timers = sync.Pool{New: ret.newTimer}
 
 	for i := 0; i < int(p.min); i++ {
-		ret.up()
+		ret.up(ret.ctx)
 	}
 
 	return ret

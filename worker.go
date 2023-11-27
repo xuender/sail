@@ -6,17 +6,19 @@ import (
 )
 
 type worker[I, O any] struct {
-	// nolint: containedctx
-	ctx  context.Context
+	id   uint32
 	pool *pool[I, O]
 }
 
-func (p *worker[I, O]) run() {
-	timer := time.NewTimer(p.pool.idle)
+func (p *worker[I, O]) run(ctx context.Context) {
+	timer, _ := p.pool.timers.Get().(*time.Timer)
+	defer p.pool.timers.Put(timer)
+
+	timer.Reset(p.pool.idle)
 
 	for {
 		select {
-		case <-p.ctx.Done():
+		case <-ctx.Done():
 			timer.Stop()
 			p.pool.stop(p)
 
@@ -29,21 +31,18 @@ func (p *worker[I, O]) run() {
 			}
 
 			timer.Reset(p.pool.idle)
-		case item, has := <-p.pool.input:
+		case item, open := <-p.pool.input:
 			timer.Stop()
 
-			if !has {
+			if !open {
 				p.pool.stop(p)
 
 				return
 			}
 
-			if p.pool.output == nil {
-				p.pool.yield(p.ctx, item)
-			} else {
-				p.pool.output <- p.pool.yield(p.ctx, item)
-			}
+			item.output = p.pool.yield(context.WithValue(ctx, WorkerID, p.id), item.input)
 
+			item.wait.Done()
 			timer.Reset(p.pool.idle)
 		}
 	}

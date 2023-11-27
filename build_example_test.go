@@ -1,42 +1,24 @@
 package sail_test
 
 import (
-	"context"
 	"fmt"
-	"sync"
 
 	"github.com/xuender/sail"
 )
 
 func ExampleNew() {
-	wait := sync.WaitGroup{}
-	output := make(chan string)
-	pool := sail.New(context.Background(), itoa).Output(output).Pool()
+	pool := sail.New(itoa).Pool()
 
 	defer pool.Close()
 
-	go func() {
-		for str := range output {
-			fmt.Println(str)
-			wait.Done()
-		}
-	}()
-
-	wait.Add(5)
-	pool.Post(1, 2, 3, 4, 5)
-
-	wait.Wait()
+	fmt.Println(pool.Process([]int{1, 2, 3, 4, 5}))
 
 	// Output:
-	// 1
-	// 2
-	// 3
-	// 4
-	// 5
+	// [num:1 num:2 num:3 num:4 num:5] <nil>
 }
 
 func Example_build_MinWorkers() {
-	pool := sail.New(context.Background(), itoa).MinWorkers(5).Pool()
+	pool := sail.New(itoa).MinWorkers(5).Pool()
 	fmt.Println(pool.Workers())
 
 	// Output:
@@ -44,7 +26,7 @@ func Example_build_MinWorkers() {
 }
 
 func Example_build_ChannelSize() {
-	pool := sail.New(context.Background(), itoa).ChannelSize(13).Pool()
+	pool := sail.New(itoa).ChannelSize(13).Pool()
 	fmt.Println(pool.Cap())
 
 	// Output:

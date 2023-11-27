@@ -5,7 +5,6 @@ import (
 	"context"
 	"fmt"
 	"strconv"
-	"sync"
 	"time"
 
 	"github.com/xuender/sail"
@@ -14,44 +13,24 @@ import (
 func itoa(_ context.Context, num int) string {
 	time.Sleep(time.Millisecond)
 
-	return strconv.Itoa(num)
+	return "num:" + strconv.Itoa(num)
 }
 
 func Example_poolPost() {
-	wait := sync.WaitGroup{}
-	output := make(chan string)
-	pool := sail.New(context.Background(), itoa).
+	pool := sail.New(itoa).
 		ChannelSize(1).
 		MaxWorkers(2).
 		Busy(time.Microsecond * 200).
 		Idle(time.Microsecond * 200).
-		Output(output).
 		Pool()
 
 	defer pool.Close()
-	defer close(output)
 
-	go func() {
-		for range output {
-			fmt.Println("ok")
-			wait.Done()
-		}
-	}()
+	fmt.Println(pool.Process([]int{1, 2, 3, 4, 5, 6, 7, 8}))
 
-	wait.Add(8)
-	pool.Post(1, 2, 3, 4, 5, 6, 7, 8)
-
-	wait.Wait()
 	fmt.Println(pool.Len())
 
 	// Output:
-	// ok
-	// ok
-	// ok
-	// ok
-	// ok
-	// ok
-	// ok
-	// ok
+	// [num:1 num:2 num:3 num:4 num:5 num:6 num:7 num:8] <nil>
 	// 0
 }

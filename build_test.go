@@ -1,7 +1,6 @@
 package sail_test
 
 import (
-	"context"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -12,14 +11,14 @@ func Test_ChannelSize(t *testing.T) {
 	t.Parallel()
 
 	ass := assert.New(t)
-	pool := sail.New(context.Background(), itoa).
+	pool := sail.New(itoa).
 		ChannelSize(3).
 		Pool()
 
 	ass.Equal(3, pool.Cap())
 	pool.Close()
 
-	pool = sail.New(context.Background(), itoa).
+	pool = sail.New(itoa).
 		ChannelSize(-1).
 		Pool()
 
@@ -31,14 +30,14 @@ func Test_MaxWorkers(t *testing.T) {
 	t.Parallel()
 
 	ass := assert.New(t)
-	pool := sail.New(context.Background(), itoa).
+	pool := sail.New(itoa).
 		MaxWorkers(3).
 		Pool()
 
 	ass.Equal(int32(3), pool.MaxWorkers())
 	pool.Close()
 
-	pool = sail.New(context.Background(), itoa).
+	pool = sail.New(itoa).
 		MaxWorkers(0).
 		Pool()
 
@@ -50,14 +49,14 @@ func Test_MinWorkers(t *testing.T) {
 	t.Parallel()
 
 	ass := assert.New(t)
-	pool := sail.New(context.Background(), itoa).
+	pool := sail.New(itoa).
 		MinWorkers(3).
 		Pool()
 
 	ass.Equal(int32(3), pool.MinWorkers())
 	pool.Close()
 
-	pool = sail.New(context.Background(), itoa).
+	pool = sail.New(itoa).
 		MinWorkers(0).
 		Pool()
 
@@ -70,7 +69,7 @@ func Test_MinMax(t *testing.T) {
 
 	ass := assert.New(t)
 
-	pool := sail.New(context.Background(), itoa).
+	pool := sail.New(itoa).
 		MinWorkers(3).
 		MaxWorkers(2).
 		Pool()

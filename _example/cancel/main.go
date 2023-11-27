@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"log"
 	"strconv"
 	"time"
@@ -9,31 +10,22 @@ import (
 	"github.com/xuender/sail"
 )
 
+// nolint
 func main() {
-	output := make(chan string)
-	defer close(output)
-
 	ctx, _ := context.WithTimeout(context.Background(), time.Second*2)
-	pool := sail.New(ctx, func(ctx context.Context, num int) string {
+	pool := sail.New(func(ctx context.Context, num int) string {
 		time.Sleep(time.Second)
 
-		return strconv.Itoa(num)
+		return "num:" + strconv.Itoa(num)
 	}).
 		ChannelSize(1).
 		MaxWorkers(10).
 		Busy(time.Millisecond * 200).
 		Idle(time.Millisecond * 200).
-		Output(output).
 		Pool()
 
-	go func() {
-		for str := range output {
-			log.Println("str", str)
-		}
-	}()
-
 	for i := 0; i < 100; i++ {
-		pool.Post(i)
+		fmt.Println(pool.SingleCtx(ctx, i))
 	}
 
 	log.Println("stop", "workers", pool.Workers())
