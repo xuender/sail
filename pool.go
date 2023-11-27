@@ -26,35 +26,6 @@ type pool[I, O any] struct {
 	isClose  bool
 }
 
-func (p *pool[I, O]) post(ctx context.Context, items ...*payload[I, O]) {
-	timer, _ := p.timers.Get().(*time.Timer)
-	timer.Reset(p.busy)
-
-	for idx, item := range items {
-		select {
-		case <-ctx.Done():
-			p.isClose = true
-
-			timer.Stop()
-			p.timers.Put(timer)
-
-			for _, other := range items[idx:] {
-				other.wait.Done()
-			}
-
-			return
-		case p.input <- item:
-		case <-timer.C:
-			p.up(ctx)
-			p.input <- item
-			timer.Reset(p.busy)
-		}
-	}
-
-	timer.Stop()
-	p.timers.Put(timer)
-}
-
 func (p *pool[I, O]) SingleCtx(ctx context.Context, elem I) (O, error) {
 	if p.isClose {
 		var zero O
@@ -148,6 +119,35 @@ func (p *pool[I, O]) MaxWorkers() int32 {
 
 func (p *pool[I, O]) MinWorkers() int32 {
 	return p.min
+}
+
+func (p *pool[I, O]) post(ctx context.Context, items ...*payload[I, O]) {
+	timer, _ := p.timers.Get().(*time.Timer)
+	timer.Reset(p.busy)
+
+	for idx, item := range items {
+		select {
+		case <-ctx.Done():
+			p.isClose = true
+
+			timer.Stop()
+			p.timers.Put(timer)
+
+			for _, other := range items[idx:] {
+				other.wait.Done()
+			}
+
+			return
+		case p.input <- item:
+		case <-timer.C:
+			p.up(ctx)
+			p.input <- item
+			timer.Reset(p.busy)
+		}
+	}
+
+	timer.Stop()
+	p.timers.Put(timer)
 }
 
 func (p *pool[I, O]) newWorker() any {
